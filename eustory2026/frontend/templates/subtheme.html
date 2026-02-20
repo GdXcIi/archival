@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- TODO: Chat system -->
+<h2>Sous-thème</h2>
+<h3 id="progress"></h3>
+
+<div id="sections"></div>
+
+<textarea id="msg"></textarea>
+<button onclick="send()">Envoyer</button>
+
+<script>
+    const subthemeId = {{ id|escapejs }};
+
+    fetch(`/api/subthemes/?subtheme=${subthemeId}`, {
+        headers: {
+            "Authorization": "Bearer " + localStorage.getItem('token')
+        }
+    })
+    .then(res => res.json())
+    .then(sections => {
+        const container = document.getElementById('sections');
+        
+        sections.forEach(section => {
+            const div = document.createElement('div');
+
+            div.innerHTML = `
+                <h3>${section.title}</h3>
+                <div id="section-${section.id}"></div>
+                <button onclick="showForm(${section.id})>+ Ajouter</button>"
+            `
+            container.appendChild(div)
+
+            loadContent(section.id)
+        })
+    });
+
+    fetch(`/api/subthemes/${subthemeId}/progress/`, {
+        headers: {
+            "Authorization": "Bearer " + localStorage.getItem('token')
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById('progress').innerText = `Progression: ${data.progress}%`;
+    });
+
+
+    function loadContent(sectionId) {
+        fetch(`/api/content/?section=${sectionId}`, {
+            headers: {
+                "Authorization": "Bearer " + localStorage.getItem('token')
+            }
+        })
+        .then(res => res.json())
+        .then(blocks => {
+            const container = document.getElementById(`section-${sectionId}`);
+            container.innerHTML = "";
+
+            blocks.forEach(block => {
+                let html = "";
+
+                if (block.content_type === "texte") {
+                    html = `<p>${block.content}</p>`;
+                }
+                
+                if (block.content_type === "image") {
+                    html = `<img src="${block.image}" width=200>`;
+                }
+
+                const div = document.createElement('div');
+                div.innerHTML = html + `<div id='sources-${block.id}'></div>`;
+
+                container.appendChild(div);
+
+                loadSources(block.id);
+            })
+        })
+    }
+
+    function loadSources(blockId) {
+        fetch(`/api/sources/?content_block=${blockId}`, {
+            headers: {
+                "Authorization": "Bearer " + localStorage.getItem('token')  
+            }
+        })
+        .then(res => res.json())
+        .then(sources => {
+            const container = document.getElementById(`sources-${blockId}`);
+
+            sources.forEach(source => {
+                const div = document.getElementById(`sources-${blockId}`);
+                div.innerHTML = `
+                    <small>
+                        Source: ${src.author}, ${src.title} (${src.year})
+                    </small>
+                `;
+                container.appendChild(div);
+            })
+        })
+    }
+
+
+    function showForm(sectionId) {
+        const form = document.getElementById("form")
+
+        form.innerHTML = `
+            <h3>Ajouter du contenu</h3>
+
+            <select> id="type">
+                <option value="text">Texte</option>
+                <option value="image">Image</option>
+            </select>
+
+            <textarea id="text"></textarea>
+            <input id="image" placeholder="URL de l'image">
+
+            <button onclick="submitContent(${sectionId})">Envoyer</button>
+        `;
+    }
+
+    function submitContent(sectionId) {
+        fetch('/api/content/', {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + localStorage.getItem('token')
+            },
+            body: JSON.stringify({
+                section: sectionId,
+                content_type: document.getElementById("type").value,
+                content: document.getElementById("text").value,
+                image: document.getElementById("image").value
+            })
+        })
+        .then(() => loadContent(sectionId));
+    }
+
+
+    function send() {
+        const messageContent = document.getElementById('msg').value;
+        fetch("/api/messages/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + localStorage.getItem('token')
+            },
+            body: JSON.stringify({
+                subtheme: id,
+                content: messageContent
+            })
+        })
+        .then(() => {
+            document.getElementById('msg').value = '';
+        });
+    }
+</script>
+
+{% endblock %}

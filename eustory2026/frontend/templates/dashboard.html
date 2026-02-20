@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2>Mes sous-thèmes</h2>
+
+    <a href="/login" id="login-btn">Se connecter</a>
+
+    <ul id="subthemes"></ul>
+    
+    <script>
+        fetch('/api/subthemes/', {
+            headers: {
+                "Authorization": "Bearer " + localStorage.getItem('token')
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            const list = document.getElementById('subthemes');
+
+            data.forEach(st => {
+                const li = document.createElement('li');
+                li.innerHTML = `<a href="/subtheme/${st.id}/">${st.title}</a>`;
+                list.appendChild(li);
+            });
+        });
+    </script>
+{% endblock %}
