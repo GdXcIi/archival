@@ -1,4 +1,4 @@
-# Archival Platform - A platform to centralize and manage very easily your content, sources and images for EUSTORY 2026
+# Archival Platform - A platform to centralize and manage easily your content, sources and images for EUSTORY 2026
 
 This project is a Django-based web application designed to centralize and manage content, sources, and images for the EUSTORY 2026 initiative. It provides an API for handling various aspects of project management, including subthemes, sections, content blocks, and sources.
 
