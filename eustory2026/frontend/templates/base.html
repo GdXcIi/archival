@@ -2,10 +2,22 @@
 <html lang="fr">
     <head>
         <title>EUSTORY 2026 DUPANLOUP</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <!-- Tailwind CSS CDN -->
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+            /* Custom styles can go here if needed */
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+        </style>
     </head>
-    <body>
-        <h1>EUSTORY 2026 - Archival Platform</h1>
+    <body class="bg-gray-50 min-h-screen">
+        <div class="container mx-auto px-4 py-8">
+            <h1 class="text-2xl font-bold text-gray-800 mb-8">EUSTORY 2026 - Archival Platform</h1>
 
-        {% block content %}{% endblock %}
+            {% block content %}{% endblock %}
+        </div>
     </body>
 </html>

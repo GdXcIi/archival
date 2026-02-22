@@ -1,8 +1,38 @@
+# Test files
+test_api.html
+fix_*.py
+check_*.py
+test_*.py
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+.env
 .venv/
-*/__pycache__/
-*.pyc
-*/migrations/
-db.sqlite3
-get_token.py
-get_token.ps1
+env/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Database
+*.sqlite3
+*.db
+
+# Media files
+images/
+
+# Logs
+*.log
+
+# Secrets
+*.secret
+*.key
+token.json
 get_token.bat
+get_token.ps1
+get_token.py

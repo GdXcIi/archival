@@ -15,7 +15,8 @@ class ContentBlock(models.Model):
     author = models.ForeignKey(User, on_delete=models.CASCADE)
     content_type = models.CharField(max_length=10, choices=CONTENT_TYPES)
     text = models.TextField(blank=True)
-    image = models.ImageField(upload_to='images/', blank=True, null=True)
+    image = models.ImageField(upload_to='', blank=True, null=True)
+    image_url = models.URLField(blank=True, null=True, help_text="URL originale de l'image")
     created_at = models.DateTimeField(auto_now_add=True)
 
 class Source(models.Model):
