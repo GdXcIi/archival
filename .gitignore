@@ -3,3 +3,6 @@
 *.pyc
 */migrations/
 db.sqlite3
+eustory2026/images/
+*/test_*.*
+token.json
