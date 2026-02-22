@@ -33,3 +33,6 @@ images/
 *.secret
 *.key
 token.json
+get_token.bat
+get_token.ps1
+get_token.py
