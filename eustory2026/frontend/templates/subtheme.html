@@ -2,103 +2,256 @@
 
 {% block content %}
 <!-- TODO: Chat system -->
-<h2>Sous-thème</h2>
-<h3 id="progress"></h3>
 
-<div id="sections"></div>
+<h2 class="text-xl font-semibold text-gray-800 mb-4">Sous-thème</h2>
+<h3 id="progress" class="text-gray-600 mb-6 italic">Chargement de la progression...</h3>
 
-<textarea id="msg"></textarea>
-<button onclick="send()">Envoyer</button>
+<div id="sections" class="space-y-6">
+    <p class="text-gray-500 italic">Chargement des sections...</p>
+</div>
+
+<div id="form" class="mt-8"></div>
+    
 
 <script>
     const subthemeId = {{ id|escapejs }};
-
-    fetch(`/api/subthemes/?subtheme=${subthemeId}`, {
-        headers: {
-            "Authorization": "Bearer " + localStorage.getItem('token')
+    
+    // Simple token check and redirect
+    function checkAndRedirect() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            alert('Votre session a expiré. Veuillez vous reconnecter.');
+            localStorage.removeItem('token');
+            window.location.href = '/login';
+            return true; // Return true to indicate redirect happened
         }
+        return false;
+    }
+    
+    // Check token on page load
+    if (checkAndRedirect()) {
+        // Stop execution if redirected
+        return;
+    }
+    
+    // Simple API request wrapper with error handling
+    async function apiRequest(url, options = {}) {
+        console.log(`🚀 API Request: ${url}`); // Debug log
+        
+        // Add authorization header
+        options.headers = {
+            ...options.headers,
+            'Authorization': 'Bearer ' + localStorage.getItem('token')
+        };
+        
+        try {
+            const response = await fetch(url, options);
+            console.log(`📡 API Response: ${response.status} ${response.statusText}`); // Debug log
+            
+            // If unauthorized, redirect to login
+            if (response.status === 401) {
+                console.error('❌ 401 Unauthorized - Token expired or invalid');
+                alert('Votre session a expiré. Veuillez vous reconnecter.');
+                localStorage.removeItem('token');
+                window.location.href = '/login';
+                return null;
+            }
+            
+            // Check for other error status codes
+            if (!response.ok) {
+                console.error(`❌ HTTP Error: ${response.status} ${response.statusText}`);
+                const errorText = await response.text();
+                console.error('Error details:', errorText);
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return response;
+        } catch (error) {
+            console.error('💥 API request failed:', error);
+            alert('Erreur de connexion. Veuillez vérifier votre connexion internet.\n\nDétails: ' + error.message);
+            return null;
+        }
+    }
+
+    // Show loading state
+    const sectionsContainer = document.getElementById('sections');
+    sectionsContainer.innerHTML = '<p class="text-gray-500 italic">Chargement des sections...</p>';
+    
+    console.log('📋 Loading sections for subtheme:', subthemeId);
+    
+    apiRequest(`/api/subthemes/?subtheme=${subthemeId}`, {})
+    .then(res => {
+        console.log('✅ Sections API call successful');
+        if (!res) {
+            console.warn('⚠️ No response received');
+            sectionsContainer.innerHTML = '<p class="text-red-500 italic">Erreur de chargement des sections.</p>';
+            return;
+        }
+        return res.json();
     })
-    .then(res => res.json())
     .then(sections => {
-        const container = document.getElementById('sections');
+        console.log('📄 Received sections:', sections);
+        if (!sections) {
+            console.warn('⚠️ No sections data');
+            sectionsContainer.innerHTML = '<p class="text-red-500 italic">Aucune donnée reçue.</p>';
+            return;
+        }
+        
+        sectionsContainer.innerHTML = ""; // Clear loading message
+        
+        if (sections.length === 0) {
+            sectionsContainer.innerHTML = "<p class=\"text-gray-500 italic\">Aucune section trouvée.</p>";
+            return;
+        }
         
         sections.forEach(section => {
             const div = document.createElement('div');
+            div.className = 'bg-white p-5 rounded-lg shadow-sm border border-gray-200';
 
             div.innerHTML = `
-                <h3>${section.title}</h3>
-                <div id="section-${section.id}"></div>
-                <button onclick="showForm(${section.id})>+ Ajouter</button>"
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-medium text-gray-800">${section.title}</h3>
+                    <button onclick="showForm(${section.id})" class="bg-green-500 hover:bg-green-600 text-white font-medium py-1 px-3 rounded text-sm transition-colors">
+                        + Ajouter
+                    </button>
+                </div>
+                <div id="section-${section.id}" class="space-y-4"></div>
             `
             container.appendChild(div)
 
             loadContent(section.id)
         })
+    })
+    .catch(error => {
+        console.error('💥 Failed to load sections:', error);
+        sectionsContainer.innerHTML = '<p class="text-red-500 italic">Erreur de chargement des sections. Veuillez rafraîchir la page.</p>';
     });
 
-    fetch(`/api/subthemes/${subthemeId}/progress/`, {
-        headers: {
-            "Authorization": "Bearer " + localStorage.getItem('token')
+    // Load progress
+    const progressElement = document.getElementById('progress');
+    progressElement.innerText = 'Chargement de la progression...';
+    
+    apiRequest(`/api/subthemes/${subthemeId}/progress/`, {})
+    .then(res => {
+        if (!res) return;
+        return res.json();
+    })
+    .then(data => {
+        if (data) {
+            progressElement.innerText = `Progression: ${data.progress}%`;
         }
     })
-    .then(res => res.json())
-    .then(data => {
-        document.getElementById('progress').innerText = `Progression: ${data.progress}%`;
+    .catch(error => {
+        console.error('Error loading progress:', error);
+        progressElement.innerText = 'Impossible de charger la progression';
     });
 
 
     function loadContent(sectionId) {
-        fetch(`/api/content/?section=${sectionId}`, {
-            headers: {
-                "Authorization": "Bearer " + localStorage.getItem('token')
-            }
+        const container = document.getElementById(`section-${sectionId}`);
+        container.innerHTML = "<p class=\"text-gray-500 italic\">Chargement du contenu...</p>";
+        
+        apiRequest(`/api/content/?section=${sectionId}`, {})
+        .then(res => {
+            if (!res) return;
+            return res.json();
         })
-        .then(res => res.json())
         .then(blocks => {
-            const container = document.getElementById(`section-${sectionId}`);
+            if (!blocks) return;
+            
             container.innerHTML = "";
+
+            if (blocks.length === 0) {
+                container.innerHTML = "<p class=\"text-gray-500 italic\">Aucun contenu pour cette section.</p>";
+            }
 
             blocks.forEach(block => {
                 let html = "";
+                console.log("Processing block:", block); // Debug log
 
-                if (block.content_type === "texte") {
-                    html = `<p>${block.content}</p>`;
+                // Check content type (using English values from model)
+                if (block.content_type === "text") {
+                    html = `<p>${block.text || 'Aucun texte disponible'}</p>`;
                 }
-                
-                if (block.content_type === "image") {
-                    html = `<img src="${block.image}" width=200>`;
+                else if (block.content_type === "image") {
+                    if (block.image) {
+                        // Use the local image URL
+                        html = `<img src="${block.image}" width=200 class="rounded-lg shadow-sm">`;
+                        if (block.image_url) {
+                            html += `<p class="text-xs text-gray-400 mt-1">Source: ${block.image_url}</p>`;
+                        }
+                    } else if (block.image_url) {
+                        // Fallback to original URL if local image failed to download
+                        html = `<img src="${block.image_url}" width=200 class="rounded-lg shadow-sm border border-yellow-300">`;
+                        html += `<p class="text-xs text-yellow-600 mt-1">⚠️ Image chargée depuis l'URL originale (téléchargement échoué)</p>`;
+                    } else {
+                        html = `<p class="text-gray-500 italic">Image non disponible</p>`;
+                    }
+                    
+                    // Show error messages if present in text
+                    if (block.text && block.text.startsWith('[IMAGE DOWNLOAD ERROR]')) {
+                        html += `<p class="text-xs text-red-600 mt-2 p-2 bg-red-50 rounded">${block.text.replace('[IMAGE DOWNLOAD ERROR] ', '')}</p>`;
+                    }
+                }
+                else if (block.content_type === "quote") {
+                    html = `<blockquote>${block.text || 'Aucune citation disponible'}</blockquote>`;
+                }
+                else {
+                    html = `<p>Type de contenu inconnu: ${block.content_type}</p>`;
                 }
 
                 const div = document.createElement('div');
-                div.innerHTML = html + `<div id='sources-${block.id}'></div>`;
+                div.className = 'bg-white p-4 rounded-lg shadow-sm border border-gray-200';
+                div.innerHTML = `
+                    <div class="text-sm text-gray-500 mb-2 italic">
+                        Type: ${block.content_type}
+                    </div>
+                    ${html}
+                    <div id='sources-${block.id}' class="mt-3 pt-3 border-t border-gray-200"></div>
+                `;
 
                 container.appendChild(div);
 
                 loadSources(block.id);
             })
         })
+        .catch(error => {
+            console.error('Error loading content:', error);
+        });
     }
 
     function loadSources(blockId) {
-        fetch(`/api/sources/?content_block=${blockId}`, {
-            headers: {
-                "Authorization": "Bearer " + localStorage.getItem('token')  
-            }
+        const container = document.getElementById(`sources-${blockId}`);
+        container.innerHTML = "<p class=\"text-xs text-gray-400 italic\">Chargement des sources...</p>";
+        
+        apiRequest(`/api/sources/?content_block=${blockId}`, {})
+        .then(res => {
+            if (!res) return;
+            return res.json();
         })
-        .then(res => res.json())
         .then(sources => {
-            const container = document.getElementById(`sources-${blockId}`);
+            if (!sources) return;
+            
+            container.innerHTML = ""; // Clear loading message
+
+            if (sources.length === 0) {
+                container.innerHTML = "<p class=\"text-xs text-gray-400 italic\">Aucune source.</p>";
+                return;
+            }
 
             sources.forEach(source => {
-                const div = document.getElementById(`sources-${blockId}`);
-                div.innerHTML = `
-                    <small>
-                        Source: ${src.author}, ${src.title} (${src.year})
-                    </small>
+                const sourceElement = document.createElement('div');
+                sourceElement.className = 'text-xs text-gray-500 mb-1';
+                sourceElement.innerHTML = `
+                    Source: ${source.author}, ${source.title} (${source.year})
                 `;
-                container.appendChild(div);
+                container.appendChild(sourceElement);
             })
         })
+        .catch(error => {
+            console.error('Error loading sources:', error);
+            container.innerHTML = "<p class=\"text-xs text-red-500 italic\">Erreur de chargement des sources.</p>";
+        });
     }
 
 
@@ -106,53 +259,100 @@
         const form = document.getElementById("form")
 
         form.innerHTML = `
-            <h3>Ajouter du contenu</h3>
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h3 class="text-lg font-medium text-gray-800 mb-4">Ajouter du contenu</h3>
 
-            <select> id="type">
-                <option value="text">Texte</option>
-                <option value="image">Image</option>
-            </select>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Type de contenu</label>
+                    <select id="type" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                        <option value="text">Texte</option>
+                        <option value="image">Image</option>
+                        <option value="quote">Citation</option>
+                    </select>
+                </div>
 
-            <textarea id="text"></textarea>
-            <input id="image" placeholder="URL de l'image">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Texte</label>
+                    <textarea id="text" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" rows="4"></textarea>
+                </div>
 
-            <button onclick="submitContent(${sectionId})">Envoyer</button>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">URL de l'image (pour les images)</label>
+                    <input id="image" type="url" placeholder="https://example.com/image.jpg" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" pattern="https?://.+">
+                    <p class="text-xs text-gray-500 mt-1">L'image sera téléchargée et sauvegardée localement</p>
+                    <p class="text-xs text-gray-500 mt-1">⚠️ Utilisez une URL valide (ex: https://upload.wikimedia.org/wikipedia/commons/...)</p>
+                </div>
+
+                <button onclick="submitContent(${sectionId})" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors">
+                    Envoyer
+                </button>
+            </div>
         `;
     }
 
     function submitContent(sectionId) {
-        fetch('/api/content/', {
+        const contentType = document.getElementById("type").value;
+        const textContent = document.getElementById("text").value;
+        const imageUrl = document.getElementById("image").value;
+
+        // Client-side validation
+        if (contentType === "image" && !imageUrl) {
+            alert('⚠️ Veuillez fournir une URL d\'image pour le contenu de type image.');
+            return;
+        }
+
+        if (contentType === "image" && imageUrl && !imageUrl.startsWith('http')) {
+            alert('⚠️ L\'URL de l\'image doit commencer par http:// ou https://');
+            return;
+        }
+
+        // Build the request body based on content type
+        const requestBody = {
+            section: sectionId,
+            content_type: contentType,
+            text: textContent
+        };
+
+        // For images, include the image URL (will be downloaded by the server)
+        if (contentType === "image" && imageUrl) {
+            requestBody.image_url = imageUrl;
+        }
+
+        console.log('Submitting content:', requestBody); // Debug log
+
+        const response = await apiRequest('/api/content/', {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
-                "Authorization": "Bearer " + localStorage.getItem('token')
+                "Content-Type": "application/json"
             },
-            body: JSON.stringify({
-                section: sectionId,
-                content_type: document.getElementById("type").value,
-                content: document.getElementById("text").value,
-                image: document.getElementById("image").value
-            })
+            body: JSON.stringify(requestBody)
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to submit content');
+        }
+        return response;
+        .then(response => {
+            console.log('Response status:', response.status); // Debug log
+            if (!response.ok) {
+                return response.json().then(err => {
+                    console.error('Detailed error:', err);
+                    throw new Error('Failed to submit content: ' + (err.detail || JSON.stringify(err)));
+                });
+            }
+            return response.json();
         })
-        .then(() => loadContent(sectionId));
-    }
-
-
-    function send() {
-        const messageContent = document.getElementById('msg').value;
-        fetch("/api/messages/", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": "Bearer " + localStorage.getItem('token')
-            },
-            body: JSON.stringify({
-                subtheme: id,
-                content: messageContent
-            })
+        .then(data => {
+            console.log('Content created:', data); // Debug log
+            loadContent(sectionId);
+            // Clear the form
+            document.getElementById("form").innerHTML = "";
+            // Show success message
+            alert('Contenu ajouté avec succès !');
         })
-        .then(() => {
-            document.getElementById('msg').value = '';
+        .catch(error => {
+            console.error('Error submitting content:', error);
+            alert('Erreur lors de l\'ajout du contenu: ' + error.message);
         });
     }
 </script>

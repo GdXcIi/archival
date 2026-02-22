@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from .models import SubTheme, Section
-from .serializers import SubThemeSerializer
+from .serializers import SubThemeSerializer, SectionSerializer
 
 # Create your views here.
 class SubThemeViewSet(ModelViewSet):
@@ -32,6 +32,8 @@ class SubThemeViewSet(ModelViewSet):
         return Response({'progress': subtheme.progress()})
     
 class SectionViewSet(ModelViewSet):
+    serializer_class = SectionSerializer
+    
     def get_queryset(self):
         subtheme_id = self.request.query_params.get('subtheme')
         queryset = Section.objects.all()
