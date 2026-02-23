@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 
 {% block content %}
-<!-- TODO: Chat system -->
 
 <h2 class="text-xl font-semibold text-gray-800 mb-4">Sous-thème</h2>
 <h3 id="progress" class="text-gray-600 mb-6 italic">Chargement de la progression...</h3>
@@ -11,350 +10,541 @@
 </div>
 
 <div id="form" class="mt-8"></div>
-    
 
 <script>
-    const subthemeId = {{ id|escapejs }};
-    
-    // Simple token check and redirect
-    function checkAndRedirect() {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            alert('Votre session a expiré. Veuillez vous reconnecter.');
+    // SubTheme App - Modern Class-Based Approach
+    class SubThemeApp {
+        constructor(subthemeId) {
+            this.subthemeId = subthemeId;
+            this.token = localStorage.getItem('token');
+            
+            // Check token on initialization
+            if (!this.token) {
+                this.redirectToLogin('Votre session a expiré. Veuillez vous reconnecter.');
+                return;
+            }
+            
+            // Initialize the app
+            this.init();
+        }
+        
+        redirectToLogin(message) {
+            alert(message);
             localStorage.removeItem('token');
             window.location.href = '/login';
-            return true; // Return true to indicate redirect happened
         }
-        return false;
-    }
-    
-    // Check token on page load
-    if (checkAndRedirect()) {
-        // Stop execution if redirected
-        return;
-    }
-    
-    // Simple API request wrapper with error handling
-    async function apiRequest(url, options = {}) {
-        console.log(`🚀 API Request: ${url}`); // Debug log
         
-        // Add authorization header
-        options.headers = {
-            ...options.headers,
-            'Authorization': 'Bearer ' + localStorage.getItem('token')
-        };
-        
-        try {
-            const response = await fetch(url, options);
-            console.log(`📡 API Response: ${response.status} ${response.statusText}`); // Debug log
-            
-            // If unauthorized, redirect to login
-            if (response.status === 401) {
-                console.error('❌ 401 Unauthorized - Token expired or invalid');
-                alert('Votre session a expiré. Veuillez vous reconnecter.');
-                localStorage.removeItem('token');
-                window.location.href = '/login';
-                return null;
+        async makeApiRequest(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    headers: {
+                        ...options.headers,
+                        'Authorization': `Bearer ${this.token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.status === 401) {
+                    this.redirectToLogin('Votre session a expiré. Veuillez vous reconnecter.');
+                    return null;
+                }
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('API Error:', error);
+                throw error;
             }
+        }
+        
+        async loadSections() {
+            const container = document.getElementById('sections');
+            container.innerHTML = '<p class="text-gray-500 italic">Chargement des sections...</p>';
             
-            // Check for other error status codes
-            if (!response.ok) {
-                console.error(`❌ HTTP Error: ${response.status} ${response.statusText}`);
-                const errorText = await response.text();
-                console.error('Error details:', errorText);
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            try {
+                console.log(`📋 Loading sections for subtheme ID: ${this.subthemeId}`);
+                const sections = await this.makeApiRequest(`/api/subthemes/?subtheme=${this.subthemeId}`);
+                
+                console.log('📄 Received sections data:', sections);
+                
+                if (!sections || sections.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500 italic">Aucune section trouvée.</p>';
+                    return;
+                }
+                
+                container.innerHTML = '';
+                sections.forEach(section => this.renderSection(section));
+                
+            } catch (error) {
+                console.error('❌ Failed to load sections:', error);
+                container.innerHTML = `<p class="text-red-500 italic">Erreur de chargement: ${error.message}</p>`;
+                throw error; // Re-throw to be caught by init()
             }
-            
-            return response;
-        } catch (error) {
-            console.error('💥 API request failed:', error);
-            alert('Erreur de connexion. Veuillez vérifier votre connexion internet.\n\nDétails: ' + error.message);
-            return null;
-        }
-    }
-
-    // Show loading state
-    const sectionsContainer = document.getElementById('sections');
-    sectionsContainer.innerHTML = '<p class="text-gray-500 italic">Chargement des sections...</p>';
-    
-    console.log('📋 Loading sections for subtheme:', subthemeId);
-    
-    apiRequest(`/api/subthemes/?subtheme=${subthemeId}`, {})
-    .then(res => {
-        console.log('✅ Sections API call successful');
-        if (!res) {
-            console.warn('⚠️ No response received');
-            sectionsContainer.innerHTML = '<p class="text-red-500 italic">Erreur de chargement des sections.</p>';
-            return;
-        }
-        return res.json();
-    })
-    .then(sections => {
-        console.log('📄 Received sections:', sections);
-        if (!sections) {
-            console.warn('⚠️ No sections data');
-            sectionsContainer.innerHTML = '<p class="text-red-500 italic">Aucune donnée reçue.</p>';
-            return;
         }
         
-        sectionsContainer.innerHTML = ""; // Clear loading message
-        
-        if (sections.length === 0) {
-            sectionsContainer.innerHTML = "<p class=\"text-gray-500 italic\">Aucune section trouvée.</p>";
-            return;
-        }
-        
-        sections.forEach(section => {
+        renderSection(section) {
+            const container = document.getElementById('sections');
             const div = document.createElement('div');
             div.className = 'bg-white p-5 rounded-lg shadow-sm border border-gray-200';
-
+            
             div.innerHTML = `
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-lg font-medium text-gray-800">${section.title}</h3>
-                    <button onclick="showForm(${section.id})" class="bg-green-500 hover:bg-green-600 text-white font-medium py-1 px-3 rounded text-sm transition-colors">
+                    <button onclick="app.showForm(${section.id})" class="bg-green-500 hover:bg-green-600 text-white font-medium py-1 px-3 rounded text-sm transition-colors">
                         + Ajouter
                     </button>
                 </div>
                 <div id="section-${section.id}" class="space-y-4"></div>
-            `
-            container.appendChild(div)
-
-            loadContent(section.id)
-        })
-    })
-    .catch(error => {
-        console.error('💥 Failed to load sections:', error);
-        sectionsContainer.innerHTML = '<p class="text-red-500 italic">Erreur de chargement des sections. Veuillez rafraîchir la page.</p>';
-    });
-
-    // Load progress
-    const progressElement = document.getElementById('progress');
-    progressElement.innerText = 'Chargement de la progression...';
-    
-    apiRequest(`/api/subthemes/${subthemeId}/progress/`, {})
-    .then(res => {
-        if (!res) return;
-        return res.json();
-    })
-    .then(data => {
-        if (data) {
-            progressElement.innerText = `Progression: ${data.progress}%`;
+            `;
+            
+            container.appendChild(div);
+            this.loadContent(section.id);
         }
-    })
-    .catch(error => {
-        console.error('Error loading progress:', error);
-        progressElement.innerText = 'Impossible de charger la progression';
-    });
-
-
-    function loadContent(sectionId) {
-        const container = document.getElementById(`section-${sectionId}`);
-        container.innerHTML = "<p class=\"text-gray-500 italic\">Chargement du contenu...</p>";
         
-        apiRequest(`/api/content/?section=${sectionId}`, {})
-        .then(res => {
-            if (!res) return;
-            return res.json();
-        })
-        .then(blocks => {
-            if (!blocks) return;
+        async loadContent(sectionId) {
+            const container = document.getElementById(`section-${sectionId}`);
+            container.innerHTML = '<p class="text-gray-500 italic text-sm">Chargement du contenu...</p>';
             
-            container.innerHTML = "";
-
-            if (blocks.length === 0) {
-                container.innerHTML = "<p class=\"text-gray-500 italic\">Aucun contenu pour cette section.</p>";
+            try {
+                const blocks = await this.makeApiRequest(`/api/content/?section=${sectionId}`);
+                
+                if (!blocks || blocks.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500 italic text-sm">Aucun contenu.</p>';
+                    return;
+                }
+                
+                container.innerHTML = '';
+                blocks.forEach(block => this.renderContentBlock(block));
+                
+            } catch (error) {
+                console.error('Failed to load content:', error);
+                container.innerHTML = `<p class="text-red-500 italic text-sm">Erreur: ${error.message}</p>`;
             }
-
-            blocks.forEach(block => {
-                let html = "";
-                console.log("Processing block:", block); // Debug log
-
-                // Check content type (using English values from model)
-                if (block.content_type === "text") {
-                    html = `<p>${block.text || 'Aucun texte disponible'}</p>`;
-                }
-                else if (block.content_type === "image") {
-                    if (block.image) {
-                        // Use the local image URL
-                        html = `<img src="${block.image}" width=200 class="rounded-lg shadow-sm">`;
-                        if (block.image_url) {
-                            html += `<p class="text-xs text-gray-400 mt-1">Source: ${block.image_url}</p>`;
-                        }
-                    } else if (block.image_url) {
-                        // Fallback to original URL if local image failed to download
-                        html = `<img src="${block.image_url}" width=200 class="rounded-lg shadow-sm border border-yellow-300">`;
-                        html += `<p class="text-xs text-yellow-600 mt-1">⚠️ Image chargée depuis l'URL originale (téléchargement échoué)</p>`;
-                    } else {
-                        html = `<p class="text-gray-500 italic">Image non disponible</p>`;
-                    }
-                    
-                    // Show error messages if present in text
-                    if (block.text && block.text.startsWith('[IMAGE DOWNLOAD ERROR]')) {
-                        html += `<p class="text-xs text-red-600 mt-2 p-2 bg-red-50 rounded">${block.text.replace('[IMAGE DOWNLOAD ERROR] ', '')}</p>`;
-                    }
-                }
-                else if (block.content_type === "quote") {
-                    html = `<blockquote>${block.text || 'Aucune citation disponible'}</blockquote>`;
-                }
-                else {
-                    html = `<p>Type de contenu inconnu: ${block.content_type}</p>`;
-                }
-
-                const div = document.createElement('div');
-                div.className = 'bg-white p-4 rounded-lg shadow-sm border border-gray-200';
-                div.innerHTML = `
-                    <div class="text-sm text-gray-500 mb-2 italic">
-                        Type: ${block.content_type}
-                    </div>
-                    ${html}
-                    <div id='sources-${block.id}' class="mt-3 pt-3 border-t border-gray-200"></div>
-                `;
-
-                container.appendChild(div);
-
-                loadSources(block.id);
-            })
-        })
-        .catch(error => {
-            console.error('Error loading content:', error);
-        });
-    }
-
-    function loadSources(blockId) {
-        const container = document.getElementById(`sources-${blockId}`);
-        container.innerHTML = "<p class=\"text-xs text-gray-400 italic\">Chargement des sources...</p>";
+        }
         
-        apiRequest(`/api/sources/?content_block=${blockId}`, {})
-        .then(res => {
-            if (!res) return;
-            return res.json();
-        })
-        .then(sources => {
-            if (!sources) return;
+        renderContentBlock(block) {
+            const container = document.getElementById(`section-${block.section}`);
+            const div = document.createElement('div');
+            div.className = 'bg-white p-4 rounded-lg shadow-sm border border-gray-200';
             
-            container.innerHTML = ""; // Clear loading message
+            let contentHtml = '';
+            if (block.content_type === 'text') {
+                contentHtml = `<p>${block.text || 'Aucun texte'}</p>`;
+            } else if (block.content_type === 'image') {
+                if (block.image) {
+                    contentHtml = `<img src="${block.image}" class="rounded-lg shadow-sm max-w-full h-auto">`;
+                } else if (block.image_url) {
+                    contentHtml = `<img src="${block.image_url}" class="rounded-lg shadow-sm max-w-full h-auto border border-yellow-300">`;
+                } else {
+                    contentHtml = '<p class="text-gray-500 italic">Image non disponible</p>';
+                }
+            } else if (block.content_type === 'quote') {
+                contentHtml = `<blockquote class="border-l-4 border-gray-300 pl-4 italic">${block.text || 'Aucune citation'}</blockquote>`;
+            }
+            
+            div.innerHTML = `
+                <div class="text-xs text-gray-500 mb-2 italic">Type: ${block.content_type}</div>
+                ${contentHtml}
+                <div id="sources-${block.id}" class="mt-2 pt-2 border-t border-gray-200"></div>
+            `;
+            
+            container.appendChild(div);
+            this.loadSources(block.id);
+        }
+        
+        async loadSources(blockId) {
+            const container = document.getElementById(`sources-${blockId}`);
+            container.innerHTML = '<p class="text-xs text-gray-400 italic">Chargement des sources...</p>';
+            
+            try {
+                const sources = await this.makeApiRequest(`/api/sources/?content_block=${blockId}`);
+                
+                if (!sources || sources.length === 0) {
+                    container.innerHTML = '<p class="text-xs text-gray-400 italic">Aucune source</p>';
+                    return;
+                }
+                
+                container.innerHTML = '';
+                sources.forEach(source => {
+                    const sourceDiv = document.createElement('div');
+                    sourceDiv.className = 'text-xs text-gray-500 mb-1';
+                    sourceDiv.innerHTML = `Source: ${source.author}, ${source.title} (${source.year})`;
+                    container.appendChild(sourceDiv);
+                });
+                
+            } catch (error) {
+                console.error('Failed to load sources:', error);
+                container.innerHTML = `<p class="text-xs text-red-500 italic">Erreur: ${error.message}</p>`;
+            }
+        }
+        
+        async loadProgress() {
+            const progressElement = document.getElementById('progress');
+            progressElement.innerText = 'Chargement de la progression...';
+            
+            try {
+                const data = await this.makeApiRequest(`/api/subthemes/${this.subthemeId}/progress/`);
+                if (data && data.progress !== undefined) {
+                    progressElement.innerText = `Progression: ${data.progress}%`;
+                } else {
+                    progressElement.innerText = 'Progression: 0%';
+                }
+            } catch (error) {
+                console.error('Failed to load progress:', error);
+                progressElement.innerText = 'Impossible de charger la progression';
+            }
+        }
+        
+        showForm(sectionId) {
+            const formContainer = document.getElementById('form');
+            formContainer.innerHTML = `
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-800 mb-4">Ajouter du contenu</h3>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Type de contenu</label>
+                        <select id="content-type" onchange="app.updateFormFields()" class="w-full p-2 border border-gray-300 rounded-md">
+                            <option value="text">Texte</option>
+                            <option value="image">Image</option>
+                            <option value="quote">Citation</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Text field (always visible) -->
+                    <div id="text-field" class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Texte</label>
+                        <textarea id="content-text" class="w-full p-2 border border-gray-300 rounded-md" rows="4" placeholder="Entrez votre texte ici..."></textarea>
+                    </div>
+                    
+                    <!-- Image URL field (hidden by default) -->
+                    <div id="image-field" class="mb-4 hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">URL de l'image</label>
+                        <input id="content-image" type="url" placeholder="https://example.com/image.jpg" class="w-full p-2 border border-gray-300 rounded-md">
+                        <p class="text-xs text-gray-500 mt-1">URL complète de l'image à télécharger</p>
+                    </div>
+                    
+                    <!-- Source field (always visible, required) -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Source <span class="text-red-500">*</span>
+                        </label>
+                        <input id="content-source" type="url" placeholder="https://example.com/source" 
+                               class="w-full p-2 border border-gray-300 rounded-md" required>
+                        <p class="text-xs text-gray-500 mt-1">URL de la source (obligatoire pour toutes les citations)</p>
+                    </div>
+                    
+                    <button onclick="app.submitContent(${sectionId})" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md">
+                        Envoyer
+                    </button>
+                </div>
+            `;
+            
+            // Set initial form state based on content type
+            this.updateFormFields();
+        }
+        
+        updateFormFields() {
+            const contentType = document.getElementById('content-type').value;
+            const textField = document.getElementById('text-field');
+            const imageField = document.getElementById('image-field');
+            const textInput = document.getElementById('content-text');
+            
+            // Always show text field, but adjust placeholder based on type
+            textField.classList.remove('hidden');
+            
+            // Show/hide image field based on content type
+            if (contentType === 'image') {
+                imageField.classList.remove('hidden');
+                textInput.placeholder = 'Description de l\'image (optionnel)';
+            } else {
+                imageField.classList.add('hidden');
+                
+                if (contentType === 'quote') {
+                    textInput.placeholder = 'Entrez la citation ici...';
+                } else {
+                    textInput.placeholder = 'Entrez votre texte ici...';
+                }
+            }
+        }
 
-            if (sources.length === 0) {
-                container.innerHTML = "<p class=\"text-xs text-gray-400 italic\">Aucune source.</p>";
+        showForm(sectionId) {
+            const formContainer = document.getElementById('form');
+            formContainer.innerHTML = `
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-800 mb-4">Ajouter du contenu</h3>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Type de contenu</label>
+                        <select id="content-type" onchange="app.updateFormFields()" class="w-full p-2 border border-gray-300 rounded-md">
+                            <option value="text">Texte</option>
+                            <option value="image">Image</option>
+                            <option value="quote">Citation</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Text field (always visible) -->
+                    <div id="text-field" class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Texte</label>
+                        <textarea id="content-text" class="w-full p-2 border border-gray-300 rounded-md" rows="4" placeholder="Entrez votre texte ici..."></textarea>
+                    </div>
+                    
+                    <!-- Image URL field (hidden by default) -->
+                    <div id="image-field" class="mb-4 hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">URL de l'image</label>
+                        <input id="content-image" type="url" placeholder="https://example.com/image.jpg" class="w-full p-2 border border-gray-300 rounded-md">
+                        <p class="text-xs text-gray-500 mt-1">URL complète de l'image à télécharger</p>
+                    </div>
+                    
+                    <!-- Source field (always visible, required) -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Source <span class="text-red-500">*</span>
+                        </label>
+                        <input id="content-source" type="url" placeholder="https://example.com/source" 
+                               class="w-full p-2 border border-gray-300 rounded-md" required>
+                        <p class="text-xs text-gray-500 mt-1">URL de la source (obligatoire pour toutes les citations)</p>
+                    </div>
+                    
+                    <button onclick="app.submitContent(${sectionId})" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md">
+                        Envoyer
+                    </button>
+                </div>
+            `;
+            
+            // Set initial form state based on content type
+            this.updateFormFields();
+        }
+        
+        updateFormFields() {
+            const contentType = document.getElementById('content-type').value;
+            const textField = document.getElementById('text-field');
+            const imageField = document.getElementById('image-field');
+            const textInput = document.getElementById('content-text');
+            
+            // Always show text field, but adjust placeholder based on type
+            textField.classList.remove('hidden');
+            
+            // Show/hide image field based on content type
+            if (contentType === 'image') {
+                imageField.classList.remove('hidden');
+                textInput.placeholder = 'Description de l\'image (optionnel)';
+            } else {
+                imageField.classList.add('hidden');
+                
+                if (contentType === 'quote') {
+                    textInput.placeholder = 'Entrez la citation ici...';
+                } else {
+                    textInput.placeholder = 'Entrez votre texte ici...';
+                }
+            }
+        }
+        
+        async submitContent(sectionId) {
+            const contentType = document.getElementById('content-type').value;
+            const text = document.getElementById('content-text').value;
+            const imageUrl = document.getElementById('content-image').value;
+            const sourceUrl = document.getElementById('content-source').value;
+            
+            // Validate source URL is provided
+            if (!sourceUrl) {
+                alert('⚠️ Veuillez fournir une URL de source.');
                 return;
             }
-
-            sources.forEach(source => {
-                const sourceElement = document.createElement('div');
-                sourceElement.className = 'text-xs text-gray-500 mb-1';
-                sourceElement.innerHTML = `
-                    Source: ${source.author}, ${source.title} (${source.year})
-                `;
-                container.appendChild(sourceElement);
-            })
-        })
-        .catch(error => {
-            console.error('Error loading sources:', error);
-            container.innerHTML = "<p class=\"text-xs text-red-500 italic\">Erreur de chargement des sources.</p>";
-        });
-    }
-
-
-    function showForm(sectionId) {
-        const form = document.getElementById("form")
-
-        form.innerHTML = `
-            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                <h3 class="text-lg font-medium text-gray-800 mb-4">Ajouter du contenu</h3>
-
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Type de contenu</label>
-                    <select id="type" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
-                        <option value="text">Texte</option>
-                        <option value="image">Image</option>
-                        <option value="quote">Citation</option>
-                    </select>
-                </div>
-
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Texte</label>
-                    <textarea id="text" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" rows="4"></textarea>
-                </div>
-
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">URL de l'image (pour les images)</label>
-                    <input id="image" type="url" placeholder="https://example.com/image.jpg" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" pattern="https?://.+">
-                    <p class="text-xs text-gray-500 mt-1">L'image sera téléchargée et sauvegardée localement</p>
-                    <p class="text-xs text-gray-500 mt-1">⚠️ Utilisez une URL valide (ex: https://upload.wikimedia.org/wikipedia/commons/...)</p>
-                </div>
-
-                <button onclick="submitContent(${sectionId})" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors">
-                    Envoyer
-                </button>
-            </div>
-        `;
-    }
-
-    function submitContent(sectionId) {
-        const contentType = document.getElementById("type").value;
-        const textContent = document.getElementById("text").value;
-        const imageUrl = document.getElementById("image").value;
-
-        // Client-side validation
-        if (contentType === "image" && !imageUrl) {
-            alert('⚠️ Veuillez fournir une URL d\'image pour le contenu de type image.');
-            return;
-        }
-
-        if (contentType === "image" && imageUrl && !imageUrl.startsWith('http')) {
-            alert('⚠️ L\'URL de l\'image doit commencer par http:// ou https://');
-            return;
-        }
-
-        // Build the request body based on content type
-        const requestBody = {
-            section: sectionId,
-            content_type: contentType,
-            text: textContent
-        };
-
-        // For images, include the image URL (will be downloaded by the server)
-        if (contentType === "image" && imageUrl) {
-            requestBody.image_url = imageUrl;
-        }
-
-        console.log('Submitting content:', requestBody); // Debug log
-
-        const response = await apiRequest('/api/content/', {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(requestBody)
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to submit content');
-        }
-        return response;
-        .then(response => {
-            console.log('Response status:', response.status); // Debug log
-            if (!response.ok) {
-                return response.json().then(err => {
-                    console.error('Detailed error:', err);
-                    throw new Error('Failed to submit content: ' + (err.detail || JSON.stringify(err)));
-                });
+            
+            const payload = {
+                section: sectionId,
+                content_type: contentType,
+                text: text
+            };
+            
+            if (contentType === 'image' && imageUrl) {
+                payload.image_url = imageUrl;
             }
-            return response.json();
-        })
-        .then(data => {
-            console.log('Content created:', data); // Debug log
-            loadContent(sectionId);
-            // Clear the form
-            document.getElementById("form").innerHTML = "";
-            // Show success message
-            alert('Contenu ajouté avec succès !');
-        })
-        .catch(error => {
-            console.error('Error submitting content:', error);
-            alert('Erreur lors de l\'ajout du contenu: ' + error.message);
-        });
+            
+            try {
+                const response = await fetch('/api/content/', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to submit: ${errorText}`);
+                }
+                
+                const contentBlock = await response.json();
+                
+                // Now create the source for this content block
+                await this.createSource(contentBlock.id, sourceUrl);
+                
+                // Clear form and reload content
+                document.getElementById('form').innerHTML = '';
+                this.loadContent(sectionId);
+                alert('Contenu ajouté avec succès!');
+                
+            } catch (error) {
+                console.error('Submit failed:', error);
+                alert(`Erreur: ${error.message}`);
+            }
+        }
+        
+        async createSource(contentBlockId, sourceUrl) {
+            try {
+                const response = await fetch('/api/sources/', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        content_block: contentBlockId,
+                        source_type: 'website',
+                        author: 'Utilisateur',
+                        title: 'Source utilisateur',
+                        url: sourceUrl,
+                        year: new Date().getFullYear().toString()
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Failed to create source:', errorText);
+                    // Don't fail the whole operation if source creation fails
+                }
+                
+            } catch (error) {
+                console.error('Source creation failed:', error);
+                // Don't fail the whole operation if source creation fails
+            }
+        }
+
+        async submitContent(sectionId) {
+            const contentType = document.getElementById('content-type').value;
+            const text = document.getElementById('content-text').value;
+            const imageUrl = document.getElementById('content-image').value;
+            const sourceUrl = document.getElementById('content-source').value;
+            
+            // Validate source URL is provided
+            if (!sourceUrl) {
+                alert('⚠️ Veuillez fournir une URL de source.');
+                return;
+            }
+            
+            const payload = {
+                section: sectionId,
+                content_type: contentType,
+                text: text
+            };
+            
+            if (contentType === 'image' && imageUrl) {
+                payload.image_url = imageUrl;
+            }
+            
+            try {
+                const response = await fetch('/api/content/', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to submit: ${errorText}`);
+                }
+                
+                const contentBlock = await response.json();
+                
+                // Now create the source for this content block
+                await this.createSource(contentBlock.id, sourceUrl);
+                
+                // Clear form and reload content
+                document.getElementById('form').innerHTML = '';
+                this.loadContent(sectionId);
+                alert('Contenu ajouté avec succès!');
+                
+            } catch (error) {
+                console.error('Submit failed:', error);
+                alert(`Erreur: ${error.message}`);
+            }
+        }
+        
+        async createSource(contentBlockId, sourceUrl) {
+            try {
+                const response = await fetch('/api/sources/', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${this.token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        content_block: contentBlockId,
+                        source_type: 'website',
+                        author: 'Utilisateur',
+                        title: 'Source utilisateur',
+                        url: sourceUrl,
+                        year: new Date().getFullYear().toString()
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Failed to create source:', errorText);
+                    // Don't fail the whole operation if source creation fails
+                }
+                
+            } catch (error) {
+                console.error('Source creation failed:', error);
+                // Don't fail the whole operation if source creation fails
+            }
+        }
+        
+        async init() {
+            try {
+                console.log('🚀 Initializing SubTheme App...');
+                
+                // Load all data with error handling
+                await Promise.all([
+                    this.loadSections().catch(error => {
+                        console.error('❌ Sections loading failed:', error);
+                        throw error;
+                    }),
+                    this.loadProgress().catch(error => {
+                        console.error('❌ Progress loading failed:', error);
+                        throw error;
+                    })
+                ]);
+                
+                console.log('✅ SubTheme App initialized successfully');
+            } catch (error) {
+                console.error('💥 App initialization failed:', error);
+                const sectionsContainer = document.getElementById('sections');
+                sectionsContainer.innerHTML = `
+                    <p class="text-red-500 italic">Erreur de chargement de la page.</p>
+                    <p class="text-sm text-gray-600">Détails: ${error.message}</p>
+                    <button onclick="window.location.reload()" class="mt-2 bg-blue-500 text-white px-3 py-1 rounded text-sm">
+                        Réessayer
+                    </button>
+                `;
+            }
+        }
     }
+    
+    // Initialize the app when DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+        window.app = new SubThemeApp({{ id|escapejs }});
+    });
 </script>
 
 {% endblock %}
